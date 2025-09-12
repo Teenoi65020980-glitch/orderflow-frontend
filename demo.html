@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OrderFlow Frontend</title>
+
+  <!-- โหลด Supabase SDK แบบ ES Module -->
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    // ตั้งค่า Supabase
+    const supabaseUrl = 'https://pidseszgiwkwktyyvajy.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpZHNlc3pnaXdrd2t0eXl2YWp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYyNzYxODAsImV4cCI6MjA3MTg1MjE4MH0.5HfMeeVE7l_dib4pVCmAa5w8kZlP0xPfIvpW1-EfrJM';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // ดึงสินค้า
+    async function fetchProducts() {
+      try {
+        const { data, error } = await supabase.from('products').select('*');
+        if (error) {
+          console.error('❌ ดึงสินค้าไม่สำเร็จ:', error.message);
+          return [];
+        }
+        console.log('✅ สินค้าที่มีอยู่:', data);
+        return data;
+      } catch (err) {
+        console.error('❌ เกิดข้อผิดพลาด:', err.message);
+        return [];
+      }
+    }
+
+    // สร้าง order พร้อมรายการสินค้า
+    async function createOrderWithItems(items) {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = userData?.user?.id;
+        if (!userId) {
+          alert('ไม่พบผู้ใช้');
+          return;
+        }
+
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .insert([{ user_id: userId }])
+          .select();
+
+        if (orderError || !orderData?.[0]) {
+          alert('สร้าง order ไม่สำเร็จ');
+          return;
+        }
+
+        const orderId = orderData[0].id;
+
+        const orderItems = items.map(item => ({
+          order_id: orderId,
+          product_id: item.product_id,
+          quantity: item.quantity
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItems);
+
+        if (itemsError) {
+          alert('เพิ่มรายการสินค้าไม่สำเร็จ');
+          return;
+        }
+
+        alert(`✅ สร้าง order สำเร็จ: ${orderId}`);
+      } catch (err) {
+        console.error('❌ เกิดข้อผิดพลาด:', err.message);
+      }
+    }
+
+    // แสดงสินค้าในหน้าเว็บ
+    async function renderProducts() {
+      const products = await fetchProducts();
+      const list = document.getElementById('productList');
+
+      if (!products || products.length === 0) {
+        list.innerHTML = '<li>ไม่มีสินค้าในระบบ</li>';
+        return;
+      }
+
+      list.innerHTML = products.map(p => `<li>${p.name} - ${p.price} บาท</li>`).join('');
+    }
+
+    // เมื่อคลิกปุ่มสร้างคำสั่งซื้อ
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('createOrderBtn').addEventListener('click', async () => {
+        try {
+          const products = await fetchProducts();
+
+          if (!products || products.length < 2) {
+            console.warn(`⚠️ พบสินค้าเพียง ${products.length} รายการ`);
+            alert(`พบสินค้าเพียง ${products.length} รายการ กรุณาเพิ่มสินค้าให้ครบก่อนสร้างคำสั่งซื้อ`);
+            return;
+          }
+
+          const items = [
+            { product_id: products[0].id, quantity: 2 },
+            { product_id: products[1].id, quantity: 1 }
+          ];
+
+          await createOrderWithItems(items);
+        } catch (err) {
+          console.error('❌ เกิดข้อผิดพลาดในการสร้างคำสั่งซื้อ:', err);
+          alert('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+        }
+      });
+
+      renderProducts(); // โหลดรายการสินค้าเมื่อเปิดหน้าเว็บ
+    });
+  </script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      color: #333;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      background-color: #6200ee;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    ul {
+      margin-top: 1rem;
+      padding-left: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>สร้างคำสั่งซื้อ</h1>
+  <button id="createOrderBtn">ยืนยันคำสั่งซื้อ</button>
+
+  <h2>รายการสินค้า</h2>
+  <ul id="productList"></ul>
+</body>
+</html>
