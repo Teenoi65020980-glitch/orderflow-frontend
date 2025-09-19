@@ -3,5 +3,6 @@ services:
     name: orderflow-frontend
     env: node
     buildCommand: npm install && npm run build
-    startCommand: npm run preview
+    startCommand: npm start
     plan: free
+
